@@ -1,9 +1,10 @@
-module go.opentelemetry.io/proto/otlp
+module github.com/maxedmands/opentelemetry-proto-go-compat/otlp
 
 go 1.17
 
 require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.11.2
+	go.opentelemetry.io/proto/otlp v0.19.0
 	google.golang.org/grpc v1.48.0
 	google.golang.org/protobuf v1.28.1
 )
