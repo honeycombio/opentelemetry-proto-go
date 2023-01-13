@@ -4,6 +4,16 @@
 
 Generated Go code for the OpenTelemetry protobuf data model.
 
+**NOTE**
+
+This is a modified version of the Go OpenTelemtry protobuf files to re-add deprecated/removed Metric types (IntSum, IntGuage, IntHistogram) and label type (StringKeyValue).
+
+You should not depend on this module directly but instead use a replace in your go.mod to swap out the official proto package with this one like this:
+
+```golang
+replace go.opentelemetry.io/proto/otlp => github.com/honeycombio/opentelemetry-proto-go/otlp v0.19.0
+```
+
 ## Getting Started
 
 Install the latest version in your project.

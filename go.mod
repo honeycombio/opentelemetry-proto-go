@@ -1,3 +1,3 @@
-module github.com/maxedmands/opentelemetry-proto-go-compat
+module github.com/honeycombio/opentelemetry-proto-go
 
 go 1.15

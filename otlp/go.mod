@@ -1,4 +1,4 @@
-module github.com/maxedmands/opentelemetry-proto-go-compat/otlp
+module github.com/honeycombio/opentelemetry-proto-go/otlp
 
 go 1.17
 
