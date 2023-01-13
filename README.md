@@ -21,6 +21,16 @@ Meaning modules will comply with [semver 2.0](https://semver.org/spec/v2.0.0.htm
     If the protobuf definition stabilizes, the package will be replaced with a stable "non-experimental" package.
     If the protobuf definition is removed, the package will be removed without a replacement.
 
+**NOTE**
+
+This is a modified version of the Go OpenTelemtry protobuf files to re-add deprecated/removed Metric types (IntSum, IntGuage, IntHistogram) and label type (StringKeyValue).
+
+You should not depend on this module directly but instead use a replace in your go.mod to swap out the official proto package with this one like this:
+
+```golang
+replace go.opentelemetry.io/proto/otlp => github.com/honeycombio/opentelemetry-proto-go/otlp v1.3.0-compat
+```
+
 ## Getting Started
 
 Install the latest version in your project.
