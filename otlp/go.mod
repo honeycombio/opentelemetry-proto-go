@@ -1,18 +1,17 @@
-module github.com/honeycombio/opentelemetry-proto-go/otlp
+module go.opentelemetry.io/proto/otlp
 
 go 1.17
 
 require (
-	github.com/grpc-ecosystem/grpc-gateway/v2 v2.11.2
-	go.opentelemetry.io/proto/otlp v0.19.0
-	google.golang.org/grpc v1.48.0
-	google.golang.org/protobuf v1.28.1
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.20.0
+	google.golang.org/grpc v1.64.0
+	google.golang.org/protobuf v1.34.2
 )
 
 require (
-	github.com/golang/protobuf v1.5.2 // indirect
-	golang.org/x/net v0.0.0-20220624214902-1bab6f366d9e // indirect
-	golang.org/x/sys v0.0.0-20220610221304-9f5ed59c137d // indirect
-	golang.org/x/text v0.3.7 // indirect
-	google.golang.org/genproto v0.0.0-20220805133916-01dd62135a58 // indirect
+	golang.org/x/net v0.23.0 // indirect
+	golang.org/x/sys v0.18.0 // indirect
+	golang.org/x/text v0.15.0 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20240513163218-0867130af1f8 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240513163218-0867130af1f8 // indirect
 )
