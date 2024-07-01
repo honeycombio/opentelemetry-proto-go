@@ -41,7 +41,7 @@ PROTOBUF_GEN_DIR   := opentelemetry-proto-gen
 PROTOBUF_TEMP_DIR  := $(GEN_TEMP_DIR)/go
 PROTO_SOURCE_DIR   := $(GEN_TEMP_DIR)/proto
 SOURCE_PROTO_FILES := $(subst $(OTEL_PROTO_SUBMODULE),$(PROTO_SOURCE_DIR),$(SUBMODULE_PROTO_FILES))
-GO_MOD_ROOT		   := go.opentelemetry.io/proto
+GO_MOD_ROOT		   := github.com/honeycombio/opentelemetry-proto-go
 OTLP_OUTPUT_DIR    := otlp
 GO_VERSION         := 1.17
 
@@ -53,7 +53,7 @@ $(1)
 
 endef
 
-OTEL_DOCKER_PROTOBUF ?= otel/build-protobuf:0.11.0
+OTEL_DOCKER_PROTOBUF ?= otel/build-protobuf:0.24.0
 PROTOC := docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${OTEL_DOCKER_PROTOBUF} --proto_path="$(PROTO_SOURCE_DIR)"
 
 .DEFAULT_GOAL := protobuf
