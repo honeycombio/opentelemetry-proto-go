@@ -110,7 +110,7 @@ gen-otlp-protobuf: $(SOURCE_PROTO_FILES)
 copy-otlp-protobuf:
 	rm -rf ./$(OTLP_OUTPUT_DIR)
 	mkdir -p ./$(OTLP_OUTPUT_DIR)
-	@rsync -a $(PROTOBUF_TEMP_DIR)/go.opentelemetry.io/proto/otlp/ ./$(OTLP_OUTPUT_DIR)
+	@rsync -a $(PROTOBUF_TEMP_DIR)/github.com/honeycombio/opentelemetry-proto-go/otlp/ ./$(OTLP_OUTPUT_DIR)
 	cd ./$(OTLP_OUTPUT_DIR) \
 		&& go mod init $(GO_MOD_ROOT)/$(OTLP_OUTPUT_DIR) \
 		&& go mod edit -go=$(GO_VERSION) \
