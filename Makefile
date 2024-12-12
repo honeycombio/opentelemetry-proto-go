@@ -37,7 +37,7 @@ $(error Submodule at $(OTEL_PROTO_SUBMODULE) is not checked out, use "git submod
 endif
 
 GO                := go
-GO_MOD_ROOT		  := github.com/honeycombio/opentelemetry-proto-go
+GO_MOD_ROOT       := github.com/honeycombio/opentelemetry-proto-go
 ALL_GO_MOD_DIRS := $(shell find . -type f -name 'go.mod' -exec dirname {} \; | sort)
 ALL_GO_SUB_MOD_DIRS := $(shell find . -type f -name 'go.mod' -mindepth 2 -exec dirname {} \; | sort)
 OTEL_GO_MOD_DIRS := $(filter-out $(TOOLS_MOD_DIR), $(ALL_GO_SUB_MOD_DIRS))
