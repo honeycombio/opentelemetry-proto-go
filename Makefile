@@ -27,7 +27,7 @@
 PROTOC_VERSION := 3.14.0
 
 TOOLS_MOD_DIR                   := ./internal/tools
-PROTOBUF_VERSION                := v1
+PROTOBUF_VERSION                := v1*
 OTEL_PROTO_SUBMODULE            := opentelemetry-proto
 GEN_TEMP_DIR                    := gen
 SUBMODULE_PROTO_FILES           := $(wildcard $(OTEL_PROTO_SUBMODULE)/opentelemetry/proto/*/$(PROTOBUF_VERSION)/*.proto) $(wildcard $(OTEL_PROTO_SUBMODULE)/opentelemetry/proto/collector/*/$(PROTOBUF_VERSION)/*.proto)
@@ -36,14 +36,23 @@ ifeq ($(strip $(SUBMODULE_PROTO_FILES)),)
 $(error Submodule at $(OTEL_PROTO_SUBMODULE) is not checked out, use "git submodule update --init")
 endif
 
-GO                 := go
-PROTOBUF_GEN_DIR   := opentelemetry-proto-gen
-PROTOBUF_TEMP_DIR  := $(GEN_TEMP_DIR)/go
+GO                := go
+GO_MOD_ROOT		  := github.com/honeycombio/opentelemetry-proto-go
+ALL_GO_MOD_DIRS := $(shell find . -type f -name 'go.mod' -exec dirname {} \; | sort)
+ALL_GO_SUB_MOD_DIRS := $(shell find . -type f -name 'go.mod' -mindepth 2 -exec dirname {} \; | sort)
+OTEL_GO_MOD_DIRS := $(filter-out $(TOOLS_MOD_DIR), $(ALL_GO_SUB_MOD_DIRS))
+TIMEOUT = 60
+
+PROTOBUF_GEN_DIR  := opentelemetry-proto-gen
+PROTOBUF_TEMP_DIR := $(GEN_TEMP_DIR)/go
+
 PROTO_SOURCE_DIR   := $(GEN_TEMP_DIR)/proto
 SOURCE_PROTO_FILES := $(subst $(OTEL_PROTO_SUBMODULE),$(PROTO_SOURCE_DIR),$(SUBMODULE_PROTO_FILES))
-GO_MOD_ROOT		   := github.com/honeycombio/opentelemetry-proto-go
 OTLP_OUTPUT_DIR    := otlp
-GO_VERSION         := 1.17
+
+PROTOSLIM_SOURCE_DIR   := $(GEN_TEMP_DIR)/slim/proto
+SOURCE_PROTOSLIM_FILES := $(subst $(OTEL_PROTO_SUBMODULE),$(PROTOSLIM_SOURCE_DIR),$(SUBMODULE_PROTO_FILES))
+OTLPSLIM_OUTPUT_DIR    := slim/otlp
 
 # Function to execute a command. Note the empty line before endef to make sure each command
 # gets executed separately instead of concatenated with previous one.
@@ -53,8 +62,11 @@ $(1)
 
 endef
 
-OTEL_DOCKER_PROTOBUF ?= otel/build-protobuf:0.24.0
+DEPENDENCIES_DOCKERFILE=./dependencies.Dockerfile
+OTEL_DOCKER_PROTOBUF := $(shell awk '$$4=="build-protobuf" {print $$2}' $(DEPENDENCIES_DOCKERFILE))
+
 PROTOC := docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${OTEL_DOCKER_PROTOBUF} --proto_path="$(PROTO_SOURCE_DIR)"
+PROTOC_SLIM := docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${OTEL_DOCKER_PROTOBUF} --proto_path="$(PROTOSLIM_SOURCE_DIR)"
 
 .DEFAULT_GOAL := protobuf
 
@@ -71,14 +83,11 @@ $(TOOLS)/%: | $(TOOLS)
 MULTIMOD = $(TOOLS)/multimod
 $(TOOLS)/multimod: PACKAGE=go.opentelemetry.io/build-tools/multimod
 
-DBOTCONF = $(TOOLS)/dbotconf
-$(TOOLS)/dbotconf: PACKAGE=go.opentelemetry.io/build-tools/dbotconf
-
 .PHONY: tools
-tools: $(DBOTCONF) $(MULTIMOD)
+tools: $(MULTIMOD)
 
 .PHONY: protobuf
-protobuf: protobuf-source gen-otlp-protobuf copy-otlp-protobuf
+protobuf: protobuf-source gen-otlp-protobuf copy-otlp-protobuf gen-otlp-protobuf-slim copy-otlp-protobuf-slim
 
 .PHONY: protobuf-source
 protobuf-source: $(SOURCE_PROTO_FILES)
@@ -96,6 +105,19 @@ $(PROTO_SOURCE_DIR)/%.proto: $(OTEL_PROTO_SUBMODULE)/%.proto
 	sed -e $(SED_EXPR) "$<" >"$@.tmp"; \
 	mv "$@.tmp" "$@"
 
+# The sed expression for replacing the go_package option in proto
+# file with a one that's valid for us.
+SED_EXPR_SLIM := 's,go_package = "go.opentelemetry.io/proto/otlp/,go_package = "$(GO_MOD_ROOT)/$(OTLPSLIM_OUTPUT_DIR)/,'
+
+# This copies proto files from submodule into $(PROTO_SOURCE_DIR),
+# thus satisfying the $(SOURCE_PROTOSLIM_FILES) prerequisite. The copies
+# have their package name replaced by go.opentelemetry.io/proto.
+$(PROTOSLIM_SOURCE_DIR)/%.proto: $(OTEL_PROTO_SUBMODULE)/%.proto
+	@ \
+	mkdir -p $(@D); \
+	sed -e $(SED_EXPR_SLIM) "$<" >"$@.tmp"; \
+	mv "$@.tmp" "$@"
+
 .PHONY: gen-otlp-protobuf
 gen-otlp-protobuf: $(SOURCE_PROTO_FILES)
 	rm -rf ./$(PROTOBUF_TEMP_DIR)
@@ -104,21 +126,62 @@ gen-otlp-protobuf: $(SOURCE_PROTO_FILES)
 	$(PROTOC) --grpc-gateway_out=logtostderr=true,grpc_api_configuration=$(OTEL_PROTO_SUBMODULE)/opentelemetry/proto/collector/trace/v1/trace_service_http.yaml:./$(PROTOBUF_TEMP_DIR) --go_out=./$(PROTOBUF_TEMP_DIR) --go-grpc_out=./$(PROTOBUF_TEMP_DIR) $(PROTO_SOURCE_DIR)/opentelemetry/proto/collector/trace/v1/trace_service.proto
 	$(PROTOC) --grpc-gateway_out=logtostderr=true,grpc_api_configuration=$(OTEL_PROTO_SUBMODULE)/opentelemetry/proto/collector/metrics/v1/metrics_service_http.yaml:./$(PROTOBUF_TEMP_DIR) --go_out=./$(PROTOBUF_TEMP_DIR) --go-grpc_out=./$(PROTOBUF_TEMP_DIR) $(PROTO_SOURCE_DIR)/opentelemetry/proto/collector/metrics/v1/metrics_service.proto
 	$(PROTOC) --grpc-gateway_out=logtostderr=true,grpc_api_configuration=$(OTEL_PROTO_SUBMODULE)/opentelemetry/proto/collector/logs/v1/logs_service_http.yaml:./$(PROTOBUF_TEMP_DIR) --go_out=./$(PROTOBUF_TEMP_DIR) --go-grpc_out=./$(PROTOBUF_TEMP_DIR) $(PROTO_SOURCE_DIR)/opentelemetry/proto/collector/logs/v1/logs_service.proto
+	$(PROTOC) --grpc-gateway_out=logtostderr=true,grpc_api_configuration=$(OTEL_PROTO_SUBMODULE)/opentelemetry/proto/collector/profiles/v1development/profiles_service_http.yaml:./$(PROTOBUF_TEMP_DIR) --go_out=./$(PROTOBUF_TEMP_DIR) --go-grpc_out=./$(PROTOBUF_TEMP_DIR) $(PROTO_SOURCE_DIR)/opentelemetry/proto/collector/profiles/v1development/profiles_service.proto
 
 
 .PHONY: copy-otlp-protobuf
 copy-otlp-protobuf:
-	rm -rf ./$(OTLP_OUTPUT_DIR)
-	mkdir -p ./$(OTLP_OUTPUT_DIR)
+	rm -rf ./$(OTLP_OUTPUT_DIR)/*/
 	@rsync -a $(PROTOBUF_TEMP_DIR)/go.opentelemetry.io/proto/otlp/ ./$(OTLP_OUTPUT_DIR)
-	cd ./$(OTLP_OUTPUT_DIR) \
-		&& go mod init $(GO_MOD_ROOT)/$(OTLP_OUTPUT_DIR) \
-		&& go mod edit -go=$(GO_VERSION) \
-		&& go mod tidy
+	@git restore $$(git ls-files --deleted | grep -E 'go\.(mod|sum)$$')
+	cd ./$(OTLP_OUTPUT_DIR)	&& go mod tidy
+
+.PHONY: gen-otlp-protobuf-slim
+gen-otlp-protobuf-slim: $(SOURCE_PROTOSLIM_FILES)
+	rm -rf ./$(PROTOBUF_TEMP_DIR)
+	mkdir -p ./$(PROTOBUF_TEMP_DIR)
+	$(foreach file,$(SOURCE_PROTOSLIM_FILES),$(call exec-command,$(PROTOC_SLIM) $(PROTO_INCLUDES) --go_out=./$(PROTOBUF_TEMP_DIR) $(file)))
+
+.PHONY: copy-otlp-protobuf-slim
+copy-otlp-protobuf-slim:
+	rm -rf $(OTLPSLIM_OUTPUT_DIR)/*/
+	@rsync -a $(PROTOBUF_TEMP_DIR)/go.opentelemetry.io/proto/slim/otlp/ ./$(OTLPSLIM_OUTPUT_DIR)
+	@git restore $$(git ls-files --deleted | grep -E 'go\.(mod|sum)$$')
+	cd ./$(OTLPSLIM_OUTPUT_DIR)	&& go mod tidy
+
+.PHONY: toolchain-check
+toolchain-check:
+	@toolchainRes=$$(for f in $(ALL_GO_MOD_DIRS); do \
+	           awk '/^toolchain/ { found=1; next } END { if (found) print FILENAME }' $$f/go.mod; \
+	done); \
+	if [ -n "$${toolchainRes}" ]; then \
+			echo "toolchain checking failed:"; echo "$${toolchainRes}"; \
+			exit 1; \
+	fi
+
+.PHONY: clean-gen
+clean-gen:
+	rm -rf $(GEN_TEMP_DIR)
 
 .PHONY: clean
 clean:
-	rm -rf $(GEN_TEMP_DIR) $(OTLP_OUTPUT_DIR)
+	rm -rf $(GEN_TEMP_DIR)
+	rm -rf $(OTLP_OUTPUT_DIR)/*/ $(OTLPSLIM_OUTPUT_DIR)/*/
+
+.PHONY: go-mod-tidy
+go-mod-tidy: clean-gen $(ALL_GO_MOD_DIRS:%=go-mod-tidy/%)
+go-mod-tidy/%: DIR=$*
+go-mod-tidy/%:
+	@echo "$(GO) mod tidy in $(DIR)" \
+		&& cd $(DIR) \
+		&& $(GO) mod tidy
+
+test: $(OTEL_GO_MOD_DIRS:%=test/%)
+test/%: DIR=$*
+test/%:
+	@echo "$(GO) test -timeout $(TIMEOUT)s $(ARGS) $(DIR)/..." \
+		&& cd $(DIR) \
+		&& $(GO) test -timeout $(TIMEOUT)s $(ARGS) ./...
 
 .PHONY: check-clean-work-tree
 check-clean-work-tree:
@@ -129,15 +192,6 @@ check-clean-work-tree:
 	  git status; \
 	  exit 1; \
 	fi
-
-DEPENDABOT_CONFIG = .github/dependabot.yml
-.PHONY: dependabot-check
-dependabot-check: | $(DBOTCONF)
-	@$(DBOTCONF) verify $(DEPENDABOT_CONFIG) || printf "\n(run: make dependabot-generate)\n"
-
-.PHONY: dependabot-generate
-dependabot-generate: | $(DBOTCONF)
-	@$(DBOTCONF) generate > $(DEPENDABOT_CONFIG)
 
 # Releasing
 
@@ -159,7 +213,13 @@ verify-versions: | $(MULTIMOD)
 	$(MULTIMOD) verify
 
 COMMIT ?= "HEAD"
-.PHONY: add-tags
-add-tags: | $(MULTIMOD)
-	@[ "${MODSET}" ] || ( echo "MODSET unset: set to taget module set from versions.yaml"; exit 1 )
-	$(MULTIMOD) verify && $(MULTIMOD) tag -m ${MODSET} -c ${COMMIT}
+REMOTE ?= upstream
+.PHONY: push-tags
+push-tags: | $(MULTIMOD)
+	$(MULTIMOD) verify
+	for module in stable unstable; do \
+		for tag in `$(MULTIMOD) tag -m $$module -c ${COMMIT} --print-tags | grep -v "Using"`; do \
+			echo "pushing tag $$tag"; \
+			git push ${REMOTE} $$tag; \
+		done; \
+	done
